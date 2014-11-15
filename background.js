@@ -8,78 +8,76 @@
  */
 
 // var ROOT_KEY = 'topic';
-// var CURRENT_TOPIC = 'currentTopic';
+var CURRENT_TOPIC = 'currentTopic';
 var NO_TOPIC = 'None';
 
 // Ignore visits lasting less than <VISIT_THRESHOLD> ms.
 var VISIT_THRESHOLD = 1000;
 
+
 var extension = {
+
+  set : function(key, value, callback) {
+    var obj = {}
+    obj[key] = value;
+    chrome.storage.local.set(obj, callback);
+  },
 
   setPromptValue: function(value) {
     $('#prompt').text("Topic: " + value);
-
   },
 
   createTopic : function(topic) {
-    var topics = extension.topics;
-    topics[topic] = [];
-    chrome.storage.local.set({'topics' : topics});
+    /* Create a topic and set the current topic to the created topic */
+    var urls = [];
+    var successMessage = "Topic " + topic + "created!";
+    extension.set(topic, urls, extension.handleError(successMessage));
     extension.setTopic(topic);
-  },
-
+  }
+,
   setTopic: function(topic) {
     // Set current topic in local storage and in memory, passing our error-handling callback
     // to the API set function.
-    chrome.storage.local.set({'currentTopic' : topic}, this.handleError());
-    this.topic = topic;
-    this.urls = this.topics[topic];
+    var successMessage = "Current topic set to " + topic;
+    extension.set(CURRENT_TOPIC, topic, extension.handleError(successMessage));
+    extension.topic = topic;
+
+    // Get the corresponding list of URLs for the topic from storage. This list
+    // should always exist because we always call createTopic on non-existent
+    // topics before calling setTopic
+
+    var topic = topic;
+
+    var callbackFunc = function(result) {
+      extension.urls = result[topic];
+    };
+
+    chrome.storage.local.get(topic, callbackFunc);
   },
 
 
   main : function() {
-  
     // Get root topics object and current topic, keep them in memory
-    chrome.storage.local.get('topics', function(result){
-      extension.topics = result.topics;
+    chrome.storage.local.get(CURRENT_TOPIC, function(result){
+      extension.topic = result[CURRENT_TOPIC];
 
-      // If topics isn't undefined, we've already loaded the extension in the past,
-      // so pull the last-used topic and set it to the current topic.
-      if(extension.topics !== undefined) {
-        chrome.storage.local.get('currentTopic', function(result){
-          extension.topic = result.currentTopic;
-          extension.urls = extension.topics[extension.topic];
-          extension.setPromptValue(extension.topic);
+      // If we have a last-used topic, pull it and set it to the current topic.
+      if(extension.topic !== undefined) {
+        // Get the list of URLs corresponding to the current topic
+        chrome.storage.local.get(extension.topic, function(result){
+          extension.urls = result[extension.topic];
         });
       }
 
-      // If topics is undefined, no topic has ever been entered by a user. Do basic setup
-      // tasks for them.
+      // If we do not have a last topic, no topic has ever been entered by a user. 
+      // Create an initial topic of "None"
       else {
-
-        extension.topics = {};
-        // Initialize empty list to store current topic URLs
-        extension.urls = [];
-        // Set initial topic to "None"
-        extension.topic = NO_TOPIC;
-        // Map current topic to empty list for current topic URLs
-        extension.topics[extension.topic] = extension.urls;
-
-
-        // Now that we've built an initial topics dict, save it back to local
-        // storage
-        chrome.storage.local.set({'topics' : extension.topics}, extension.handleError());
-
-        // Set initial ("None") topic
-        extension.setTopic(extension.topic);
-
+        // save initial topic to storage
+       extension.createTopic(NO_TOPIC);
       }
 
       chrome.history.onVisited.addListener(extension.handleVisit());
-      $('#set_topic').on('submit', extension.handleSubmit);
-
     });
-
 
   },
 
@@ -92,10 +90,11 @@ var extension = {
 
     extension.urls.push(visitObject);
 
-
     // Update storage -- TODO find a better way of doing this than pushing the entire
     // topic dict
-    chrome.storage.local.set({'topics' : this.topics}, this.handleError());
+    var url = visitObject.url;
+    var successMessage = "Recorded visit to " + url + " under topic '" + extension.topic + "'";
+    extension.set(extension.topic, extension.urls, extension.handleError(successMessage));
 
   },
 
@@ -109,11 +108,10 @@ var extension = {
     if(lastVisit === undefined) {return;}
     var lastTime = lastVisit.time
     duration = currentTime - lastTime;
-    debugger;
     if(duration < VISIT_THRESHOLD) {
       // Remove the last visit -- it was too short
       extension.urls.pop();
-      chrome.storage.local.set({'topics' : this.topics}, this.handleError());
+      extension.set(extension.topic, extension.urls);
     }
   },
 
@@ -139,20 +137,19 @@ var extension = {
   },
 
   addVisit: function(lastVisit, currentVisit, currentTime) {
-    debugger;
-
     extension.validateVisitDuration(lastVisit, currentVisit, currentTime);
     extension._addVisit(lastVisit, currentVisit, currentTime);
   },
 
   handleError: function(message) {
+    var message = message;
     return function() {
       if (chrome.runtime.lastError !== undefined) {
         console.log(chrome.runtime.lastError.message);
       }
       else {
-        var message = (message === undefined ? "Success!" : message);
-        console.log(message);      
+        var logMessage = (message === undefined ? "Success!" : message);
+        console.log(logMessage);      
       }
     }
 
@@ -163,9 +160,12 @@ var extension = {
 
     // Return callback function with access to extension scope
     return function(currentVisit) {
-      var lastVisit = extension.urls[extension.urls.length - 1];
-      var currentTime = Date.now();
-      extension.addVisit(lastVisit, currentVisit, currentTime);
+      // Only add to list of URLs if topic is not "None"
+      if(extension.topic != NO_TOPIC) {
+        var lastVisit = extension.urls[extension.urls.length - 1];
+        var currentTime = Date.now();
+        extension.addVisit(lastVisit, currentVisit, currentTime);
+      }
     } 
   },
 
@@ -184,19 +184,11 @@ var extension = {
     }
 
     $('#topic_input').val("");
-    extension.setPromptValue(extension.topic);
+    extension.popup.setPromptValue(extension.topic);
   },  
 
 }
-
-$(function() {
-  chrome.storage.local.getBytesInUse(function(result) {
-   console.log("Bytes in use: %s", result);   
-   extension.main();
- });
-
-});
-
+extension.main();
 
 
 
