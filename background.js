@@ -10,10 +10,10 @@
 // var ROOT_KEY = 'topic';
 var CURRENT_TOPIC = 'currentTopic';
 var NO_TOPIC = 'None';
+var DROPBOX_APP_KEY = '4rvr6lrbusgv4rf';
 
 // Ignore visits lasting less than <VISIT_THRESHOLD> ms.
 var VISIT_THRESHOLD = 1000;
-
 
 var extension = {
 
@@ -56,7 +56,39 @@ var extension = {
   },
 
 
+  setupDropbox : function() {
+
+    var dropbox = new Dropbox.Client({key: DROPBOX_APP_KEY});
+    var authDriver = new Dropbox.AuthDriver.ChromeExtension({
+      receiverUrl: 'chrome_oauth_receiver.html'
+    });
+
+    dropbox.authDriver(authDriver);
+
+    // Try to finish OAuth authorization.
+    dropbox.authenticate({interactive: false}, function (error, client) {
+        if (error) {
+            console.log('Authentication error: ' + error);
+        }
+    });
+
+    if (dropbox.isAuthenticated()) {
+        return;
+    }
+
+    dropbox.authenticate(function(error, client){
+      if(error){
+        console.log('Authentication error: ' + error);
+    });
+    extension.dropbox = dropbox;
+  },
+
   main : function() {
+
+    // Set up Dropbox API object
+    extension.setupDropbox();
+
+
     // Get root topics object and current topic, keep them in memory
     chrome.storage.local.get(CURRENT_TOPIC, function(result){
       extension.topic = result[CURRENT_TOPIC];

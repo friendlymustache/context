@@ -5,14 +5,23 @@
   "description": "Suggests useful websites based on your current task",
   "version": "1.0",
 
+
+  "web_accessible_resources": [
+        "chrome_oauth_receiver.html"
+  ],
+
+  "content_security_policy": "script-src 'self' https://www.dropbox.com/; object-src 'self'",
+
   "permissions": [
     "https://secure.flickr.com/",
     "history",
-    "storage"
+    "storage",
+    "https://*.dropbox.com/*"
+
   ],
 
   "background": {
-    "scripts": ["background.js"],
+    "scripts": ["vendor/dropbox.js", "background.js"],
     "persistent": false
   },
 

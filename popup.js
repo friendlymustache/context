@@ -22,8 +22,12 @@ var popup = {
 
 
   main : function() {
-  
-    this.background = chrome.extension.getBackgroundPage().extension;
+    
+    // Get a reference to background page (actually an event page)
+    chrome.runtime.getBackgroundPage(function(result){
+      popup.background = result.extension;
+    });
+
     // Get root topics object and current topic, keep them in memory
     chrome.storage.local.get(CURRENT_TOPIC, function(result){
       popup.topic = (result.currentTopic === undefined ? NO_TOPIC : result.currentTopic);
